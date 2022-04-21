@@ -56,7 +56,7 @@ recordings.df <- lengths.raw.df %>%
                          'timestamp' = 'ts.end'),
                   match_fun = list(`==`, `>=`, `<=`))
 
-recordings.df %>% write.csv( paste0( data.dir, 'songmeter-recording-metadata.csv' ), row.names = F )
+recordings.df %>% select(-deviceID.y) %>% rename(deviceID = deviceID.x) %>% write.csv( paste0( data.dir, 'songmeter-recording-metadata.csv' ), row.names = F )
 
 recordings.noLatLon.df <- recordings.df %>% 
   filter(is.na(lat))
@@ -77,15 +77,16 @@ recordings.by.point.df <- recordings.df %>%
   rename(deviceID = deviceID.x) %>%
   mutate(year = factor(year(timestamp))) %>%
   group_by(year, routeID, route.name, pointID) %>%
-  summarise(n.devices = length(unique(deviceID)),
-            deviceID = paste0(unique(deviceID), collapse = ','),
+  summarise(driveID = paste0(unique(driveID), collapse = ','),
+            wetland.type = paste0(unique(wetland.type), collapse = ','),
             n.minutes = sum(length.secs, na.rm = T) / 60,
             ts.min = min(timestamp, na.rm = T),
             ts.max = max(timestamp, na.rm = T),
-            n.days = round(difftime(ts.max, ts.min, units = 'days')))
+            n.days = round(difftime(ts.max, ts.min, units = 'days')),
+            n.devices = length(unique(deviceID)),
+            deviceID = paste0(unique(deviceID), collapse = ','))
 
-
-recordings.by.point.df %>% write.csv( paste0( data.dir, 'Songmeter recordings by route.csv' ), row.names = F )
+recordings.by.point.df %>% write.csv( paste0( data.dir, 'songmeter-route-summary.csv' ), row.names = F )
 
 # Number of recording minutes with NO METADATA
 n.minutes.noMeta <- sum(recordings.by.point.df$n.minutes[which(is.na(recordings.by.point.df$lat))])
