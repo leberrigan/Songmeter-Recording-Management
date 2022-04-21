@@ -76,3 +76,7 @@ expanded.recording.info %>%
   group_by(drive.id) %>%
   summarise() %>%
     write.csv("drive-inventory.csv", row.names = F)
+
+expanded.recording.info %>%
+  rename(driveID = drive.id, deviceID = device.id) %>%
+  write.csv("songmeter-recording-specs.csv", row.names = F)

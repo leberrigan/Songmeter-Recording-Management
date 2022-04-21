@@ -17,82 +17,69 @@ library(fuzzyjoin)
 #  can be used anywhere in the entire script (global) and doesn't change (is constant)
 
 # Where I stored the data
-data.dir <- '../Data/'
+data.dir <- '../../Data/'
 
 # The name of the two files
-recordingLengths.filename <- "songmeter_recording_lengths 2012-2020.csv"
-deployments.filename <- "SM-DeploymentSchedule-History2014-2020.csv"
+recordingLengths.filename <- "songmeter-recording-specs.csv"
+deployments.filename <- "songmeter-deployments.csv"
+point.metadata.filename <- "point.metadata.csv"
 
 
 #####################
 ## Load tables
 
 # The recording lengths file (paste0 is used to stick two strings together)
-lengths.raw.df <- read.csv( paste0( data.dir, recordingLengths.filename ) )
+lengths.raw.df <- read.csv( paste0( data.dir, recordingLengths.filename ) ) %>%
+  mutate(timestamp = as.Date(timestamp))
 
 # The deployments file
-deps.raw.df <- read.csv( paste0( data.dir, deployments.filename ) )
+deps.raw.df <- read.csv( paste0( data.dir, deployments.filename ) ) %>%
+  mutate(
+    ts.start = as.Date(ts.start),
+    ts.end = ifelse(is.na(ts.end) | (length(ts.end) == 0), ceiling_date(ts.start,"year")-days(1), (ts.end)) %>% as.Date(origin = "1970-01-01"),
+    ts.end = ifelse(is.na(ts.end) | (length(ts.end) == 0), ceiling_date(ts.start,"year")-days(1), (ts.end)) %>% as.Date(origin = "1970-01-01"))
 
+# Survey point metadata
+points.df <- read.csv( paste0( data.dir, point.metadata.filename ) ) %>%
+  mutate(routeID = gsub("-[0-9A-z]{2}$","", pointID))
 
 #####################
 ## Wrangle data
 # This is where I will manipulate the data to my liking
 
-# Mutate the file names to separate the device ID from the time stamp
-# This is done using 'str_extract' which uses a regular expression (regex) to
-# find the desired text. Regex is notoriously difficult to learn so don't fuss
-# too much over what I'm doing. If bugs are found in this code, I can fix it!
-lengths.df <- lengths.raw.df %>%
-  mutate(deviceID = as.integer(str_extract(file.location, '(?<=(POPA|SM)( |-)?)[0-9]{1,2}(?=.*)')),
-         timestamp.raw = str_extract(filename, '(?<=(POPA|SM)[-]?[0-9]{1,2}_)(.*)(?=.wav)'),
-         timestamp.raw = if_else(is.na(timestamp.raw), str_extract(filename, '^(.*)(?=.wav)'), timestamp.raw),
-         timestamp = as.POSIXct(timestamp.raw, format = "%Y%m%d_%H%M%S"),
-       device.name = paste("POPA-", deviceID, sep = '')) %>%
-  # I'm grouping the data by file name because there are lots of duplicates.
-  # I also am creating a new variable 'n.copies' for the number of duplicates.
-  group_by(filename) %>%
-  summarise(deviceID = deviceID[1],
-            device.name = device.name[1],
-            timestamp = timestamp[1],
-            length.minutes = length.min[1],
-            n.copies = n())
-
-# Fix the deployments file so it's ready to be merged with the recording lengths
-deps.df <- deps.raw.df %>%
-  mutate(ts.start = as.POSIXct(paste(year.in, mon.in, day.in), format = "%Y %b %d"),
-         ts.end = as.POSIXct(paste(year.out, month.out, day.out), format = "%Y %b %d"),
-         deployment.days = difftime(ts.end, ts.start, units = 'days')) %>%
-  select(POPA, routeID = MMMP.Route, route.name = Location,
-         pointID = Site.ID, lat = Latitude, lon = Longitude, ts.start, ts.end, deployment.days, notes = Notes)
-
-# Here I'm just saving a tidied version of the deployments file with column names fixed
-deps.df %>% rename(deviceID = POPA) %>% write.csv( paste0( data.dir, deployments.filename, ' - LEB edit.csv' ), row.names = F )
-
 # Merge songmeter deployments with recording lengths
 # This takes a while since I'm using fuzzy_left_join
-recordings.df <- lengths.df %>%
-  fuzzy_left_join(deps.df,
-                  by = c('deviceID' = 'POPA',
+recordings.df <- lengths.raw.df %>%
+  fuzzy_left_join(deps.raw.df,
+                  by = c('deviceID' = 'deviceID',
                          'timestamp' = 'ts.start',
                          'timestamp' = 'ts.end'),
                   match_fun = list(`==`, `>=`, `<=`))
 
-recordings.df %>% select(-POPA) %>% write.csv( paste0( data.dir, 'All Songmeter Recordings, Dates, and Locations.csv' ), row.names = F )
+recordings.df %>% write.csv( paste0( data.dir, 'songmeter-recording-metadata.csv' ), row.names = F )
+
+recordings.noLatLon.df <- recordings.df %>% 
+  filter(is.na(lat))
+
+recordings.noWetland.df <- recordings.df %>% 
+  filter(is.na(wetland.type))
 
 # This is to verify there aren't any duplicated deployments of songmeters
 duplicate.deployments.df <- recordings.df %>%
-  mutate(deployID = as.integer(as.factor(paste(deviceName, route.name, lat, lon, ts.start, ts.end)))) %>%
+  rename(deviceID = deviceID.x) %>%
+  mutate(deployID = as.integer(as.factor(paste(deviceID, route.name, lat, lon, ts.start, ts.end)))) %>%
   group_by(deployID) %>%
-  summarise(n.devices = length(unique(deviceName)))
+  summarise(n.devices = length(unique(deviceID)))
 
 # Summarise recordings by point.
 # ts.min and ts.max represent first and last recordings for the point/year.
 recordings.by.point.df <- recordings.df %>%
+  rename(deviceID = deviceID.x) %>%
   mutate(year = factor(year(timestamp))) %>%
   group_by(year, routeID, route.name, pointID) %>%
   summarise(n.devices = length(unique(deviceID)),
             deviceID = paste0(unique(deviceID), collapse = ','),
-            n.minutes = sum(length.minutes, na.rm = T),
+            n.minutes = sum(length.secs, na.rm = T) / 60,
             ts.min = min(timestamp, na.rm = T),
             ts.max = max(timestamp, na.rm = T),
             n.days = round(difftime(ts.max, ts.min, units = 'days')))
@@ -101,10 +88,10 @@ recordings.by.point.df <- recordings.df %>%
 recordings.by.point.df %>% write.csv( paste0( data.dir, 'Songmeter recordings by route.csv' ), row.names = F )
 
 # Number of recording minutes with NO METADATA
-n.minutes.noMeta <- sum(recordings.by.point.df$n.minutes[which(is.na(recordings.by.point.df$routeID))])
+n.minutes.noMeta <- sum(recordings.by.point.df$n.minutes[which(is.na(recordings.by.point.df$lat))])
 
 # Number of recording minutes with metadata
-n.minutes.withMeta <- sum(recordings.by.point.df$n.minutes[which(!is.na(recordings.by.point.df$routeID))])
+n.minutes.withMeta <- sum(recordings.by.point.df$n.minutes[which(!is.na(recordings.by.point.df$lat))])
 
 # Percent of recording minutes with NO METADATA
 round(100*n.minutes.noMeta/(n.minutes.noMeta+n.minutes.withMeta))
