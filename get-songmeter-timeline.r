@@ -13,7 +13,7 @@ library(fuzzyjoin)
 
 #####################
 ## Define global constants
-# A global constant is an object (string, number, vector, table, etc.) that 
+# A global constant is an object (string, number, vector, table, etc.) that
 #  can be used anywhere in the entire script (global) and doesn't change (is constant)
 
 # Where I stored the data
@@ -25,7 +25,7 @@ deployments.filename <- "SM-DeploymentSchedule-History2014-2020.csv"
 
 
 #####################
-## Load tables  
+## Load tables
 
 # The recording lengths file (paste0 is used to stick two strings together)
 lengths.raw.df <- read.csv( paste0( data.dir, recordingLengths.filename ) )
@@ -39,10 +39,10 @@ deps.raw.df <- read.csv( paste0( data.dir, deployments.filename ) )
 # This is where I will manipulate the data to my liking
 
 # Mutate the file names to separate the device ID from the time stamp
-# This is done using 'str_extract' which uses a regular expression (regex) to 
+# This is done using 'str_extract' which uses a regular expression (regex) to
 # find the desired text. Regex is notoriously difficult to learn so don't fuss
 # too much over what I'm doing. If bugs are found in this code, I can fix it!
-lengths.df <- lengths.raw.df %>% 
+lengths.df <- lengths.raw.df %>%
   mutate(deviceID = as.integer(str_extract(file.location, '(?<=(POPA|SM)( |-)?)[0-9]{1,2}(?=.*)')),
          timestamp.raw = str_extract(filename, '(?<=(POPA|SM)[-]?[0-9]{1,2}_)(.*)(?=.wav)'),
          timestamp.raw = if_else(is.na(timestamp.raw), str_extract(filename, '^(.*)(?=.wav)'), timestamp.raw),
@@ -50,7 +50,7 @@ lengths.df <- lengths.raw.df %>%
        device.name = paste("POPA-", deviceID, sep = '')) %>%
   # I'm grouping the data by file name because there are lots of duplicates.
   # I also am creating a new variable 'n.copies' for the number of duplicates.
-  group_by(filename) %>% 
+  group_by(filename) %>%
   summarise(deviceID = deviceID[1],
             device.name = device.name[1],
             timestamp = timestamp[1],
@@ -62,7 +62,7 @@ deps.df <- deps.raw.df %>%
   mutate(ts.start = as.POSIXct(paste(year.in, mon.in, day.in), format = "%Y %b %d"),
          ts.end = as.POSIXct(paste(year.out, month.out, day.out), format = "%Y %b %d"),
          deployment.days = difftime(ts.end, ts.start, units = 'days')) %>%
-  select(POPA, routeID = MMMP.Route, route.name = Location, 
+  select(POPA, routeID = MMMP.Route, route.name = Location,
          pointID = Site.ID, lat = Latitude, lon = Longitude, ts.start, ts.end, deployment.days, notes = Notes)
 
 # Here I'm just saving a tidied version of the deployments file with column names fixed
@@ -71,9 +71,9 @@ deps.df %>% rename(deviceID = POPA) %>% write.csv( paste0( data.dir, deployments
 # Merge songmeter deployments with recording lengths
 # This takes a while since I'm using fuzzy_left_join
 recordings.df <- lengths.df %>%
-  fuzzy_left_join(deps.df, 
-                  by = c('deviceID' = 'POPA', 
-                         'timestamp' = 'ts.start', 
+  fuzzy_left_join(deps.df,
+                  by = c('deviceID' = 'POPA',
+                         'timestamp' = 'ts.start',
                          'timestamp' = 'ts.end'),
                   match_fun = list(`==`, `>=`, `<=`))
 

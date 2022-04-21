@@ -1,23 +1,30 @@
 # Songmeter Audio File Management
 
-## Catalogue recordings on your hard drives
+## Catalogue recordings on a hard drive
 1. Plug in a hard drive
 1. Enter the drive letter and ID
 1. Run the code
 
-## Summary of catalogue recordings
+## Summarise catalogue of recordings
 - Identify which recordings are missing backups
 - Estimate the recording schedules based on the device ID and year
 
 ## Backup recordings
-1. Plug in the hard drive that contains the unique recordings
-1. Plug in the hard drive that will hold the backup
+1. Plug in a hard drive that contains the unique recordings
+1. Plug in a hard drive that will hold the backup
 1. Enter the drive letter of each both drives and the ID of backup drive
 1. Run the code
 
 - It searches for files identified in the summary step.
 - It writes a file in the catalogue using the drive ID from the previous step.
 
+## Link recordings with deployments
+1. Enter the file location for your deployment metadata
+2. Enter the column names for: `site name`, `latitude`, `longitude`, `start date`, `end date`
+
+- Creates a CSV of deployment histories
+- Appends locations to catalogue of recordings
+- Plot distribution of deployments
 
 ## Notes
 - There should always be at least 2 copies of each recording on different hard drives.
