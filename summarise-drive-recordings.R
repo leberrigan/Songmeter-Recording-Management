@@ -20,9 +20,6 @@ timestamp.regex <- "[0-9_]{15}(?=\\.wav)"
 device.id.regex <- "(?<=(POPA|SM)-?)[0-9]{2}"
 
 expanded.recording.info <- recording.info.df %>%
-  mutate(device.id = str_match(filename, device.id.regex)[,1],
-         timestamp = str_match(filename, timestamp.regex)[,1] %>%
-           as.POSIXct(origin="1970-01-01",format="%Y%m%d_%H%M%S")) %>%
   filter(!grepl("://BITH", file.location, fixed=T),
          !is.na(device.id)) %>%
   group_by(filename) %>%

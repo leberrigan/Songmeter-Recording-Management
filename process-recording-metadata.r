@@ -56,13 +56,81 @@ recordings.df <- lengths.raw.df %>%
                          'timestamp' = 'ts.end'),
                   match_fun = list(`==`, `>=`, `<=`))
 
-recordings.df %>% select(-deviceID.y) %>% rename(deviceID = deviceID.x) %>% write.csv( paste0( data.dir, 'songmeter-recording-metadata.csv' ), row.names = F )
+recordings.fixed.df <- recordings.df %>%
+  left_join(select(points.df, pointID, latitude, longitude, type), by = "pointID") %>%
+  mutate(lat = ifelse(is.na(lat), latitude, lat) %>% as.numeric,
+         lon = ifelse(is.na(lon), longitude, lon) %>% as.numeric,
+         wetland.type = ifelse(is.na(wetland.type), type, wetland.type)) %>%
+  rename(deviceID = deviceID.x) %>%
+  select(-type, -longitude, -latitude, -deviceID.y)
+  
 
-recordings.noLatLon.df <- recordings.df %>% 
-  filter(is.na(lat))
+recordings.fixed.df %>% write.csv( paste0( data.dir, 'songmeter-recording-metadata.csv' ), row.names = F )
 
-recordings.noWetland.df <- recordings.df %>% 
-  filter(is.na(wetland.type))
+# Metadata Completeness
+recordings.fixed.df %>%
+  filter(year(timestamp) > 2000) %>%
+  mutate(year = floor_date(timestamp, "year"),
+         no.lat = is.na(lat) & is.na(route.name),
+         no.wet = is.na(wetland.type),
+         cat = case_when(no.lat ~ "No coords",
+                         no.wet ~ "No wetland type",
+                         T ~ "Good")) %>% 
+  ggplot(aes(year, length.secs/3600, group = cat, fill = cat))+
+  geom_col()+
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
+  labs(x = "Year", y = "Hours of recordings", title = "Metadata completeness of SongMeter recordings thru all years")+
+  guides(sum = "none")
+
+# Distribution of wetland types
+recordings.fixed.df %>%
+  filter(year(timestamp) > 2000,
+         !is.na(wetland.type)) %>%
+  mutate(year = floor_date(timestamp, "year")) %>% 
+  ggplot(aes(year, length.secs/3600, group = wetland.type, fill = wetland.type))+
+  geom_col()+
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
+  labs(x = "Year", y = "Hours of recordings", title = "Annual distribution of recordings by wetland type")+
+  guides(sum = "none")
+
+
+# Mapping of wetland recordings by year
+
+library(rworldmap)
+library(rworldxtra)
+
+# Make a new high resolution map
+lakes <- map_data('lakes')
+lakes.df <- fortify(lakes)
+lakes <- NULL
+
+worldMap <- getMap(resolution = "high")
+# Connect up all the points so the polygons are closed
+worldMap.df <- fortify(worldMap)
+worldMap <- NULL
+
+bounds.view <- list(c(-67.7, -62.25), c(45, 47.5))
+
+recordings.fixed.df %>%
+  filter(year(timestamp) > 2000,
+         !is.na(lon)) %>%
+  mutate(year = floor_date(timestamp, "year") %>% year() %>% as.character()) %>% 
+  ggplot(aes(lon, lat)) +
+  geom_polygon(data = worldMap.df, aes(long, lat,group=group), fill="#AAAAAA", colour="#000000")+
+  geom_polygon(data = lakes.df, aes(long, lat,group=group), fill="#d1dbe5", colour="#000000")+
+#  geom_point()+
+#  geom_jitter(aes(fill = year), size = 3, alpha = 0.5, shape = 21, color = 'black', stroke = 1)+
+  stat_summary_2d(aes(z=length.secs/3600), binwidth=0.2, fun="sum")+
+  labs(x = 'Longitude', y = 'Latitude', title = "Distribution of SongMeter recordings by year", fill = "Hours")+
+  #scale_color_viridis_c()+
+  scale_fill_viridis_c()+
+#  scale_size_continuous(range = c(4,10))+
+  coord_fixed(xlim = bounds.view[[1]], ylim = bounds.view[[2]])+
+  theme_minimal()+
+  facet_wrap(.~year)
+#  guides(size = F)+
+
+
 
 # This is to verify there aren't any duplicated deployments of songmeters
 duplicate.deployments.df <- recordings.df %>%
@@ -88,14 +156,6 @@ recordings.by.point.df <- recordings.df %>%
 
 recordings.by.point.df %>% write.csv( paste0( data.dir, 'songmeter-route-summary.csv' ), row.names = F )
 
-# Number of recording minutes with NO METADATA
-n.minutes.noMeta <- sum(recordings.by.point.df$n.minutes[which(is.na(recordings.by.point.df$lat))])
-
-# Number of recording minutes with metadata
-n.minutes.withMeta <- sum(recordings.by.point.df$n.minutes[which(!is.na(recordings.by.point.df$lat))])
-
-# Percent of recording minutes with NO METADATA
-round(100*n.minutes.noMeta/(n.minutes.noMeta+n.minutes.withMeta))
 
 # Make a plot of this summary
 # I had to remove NA route names
@@ -104,9 +164,8 @@ recordings.by.point.df %>%
   group_by(year, route.name) %>%
   summarise(n.minutes = sum(n.minutes, na.rm = T),
             n.points = length(unique(pointID))) %>%
-  ggplot(aes(route.name, year, size = n.points, color = n.minutes))+
+  ggplot(aes(year, route.name, size = n.points, color = n.minutes))+
   geom_point()+
 #  guides(color = T)+
-  theme(axis.text.x = element_text(angle=90, hjust = 1, vjust = 0.5))+
   scale_color_viridis_c()+
   labs(x = 'Route name', y = 'Year', size = 'Number of\n points', color = 'Number of\n minutes', title = 'Number of recording minutes per wetland route per year')
