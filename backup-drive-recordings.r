@@ -14,7 +14,7 @@ search.files.df <- read.csv('recordings-requiring-backup.csv')
 
 # Backup hard drive path
 backup.drive <- 'G:/'
-backup.drive.id <- 17
+backup.drive.id <- 21
 
 # Updates catalogue once complete
 catalogue.dir <- 'songmeter_recording_info/'

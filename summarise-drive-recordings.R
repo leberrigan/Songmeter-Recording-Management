@@ -77,3 +77,10 @@ expanded.recording.info %>%
 expanded.recording.info %>%
   rename(driveID = drive.id, deviceID = device.id) %>%
   write.csv("songmeter-recording-specs.csv", row.names = F)
+
+
+# Plot annual recordings
+expanded.recording.info %>%
+  filter(year(timestamp) >= 2012) %>%
+  ggplot(aes(year(timestamp), length.secs/3600, fill = (n.copies == 1)))+
+  geom_bar(stat = "sum")

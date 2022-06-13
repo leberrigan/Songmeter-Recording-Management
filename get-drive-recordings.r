@@ -5,8 +5,8 @@ source("get-drive-recordings-fn.r")
 
 output.folder <- 'songmeter_recording_info/'
 
-get.drive.recording.info('21', 'F:/', output.folder)
-get.drive.recording.info('8', 'G:/', output.folder)
+get.drive.recording.info('22', 'F:/', output.folder)
+get.drive.recording.info('21', 'G:/', output.folder)
 
 
 

@@ -17,7 +17,7 @@ library(fuzzyjoin)
 #  can be used anywhere in the entire script (global) and doesn't change (is constant)
 
 # Where I stored the data
-data.dir <- '../../Data/'
+data.dir <- 'data/'
 
 # The name of the two files
 recordingLengths.filename <- "songmeter-recording-specs.csv"
@@ -63,7 +63,7 @@ recordings.fixed.df <- recordings.df %>%
          wetland.type = ifelse(is.na(wetland.type), type, wetland.type)) %>%
   rename(deviceID = deviceID.x) %>%
   select(-type, -longitude, -latitude, -deviceID.y)
-  
+
 
 recordings.fixed.df %>% write.csv( paste0( data.dir, 'songmeter-recording-metadata.csv' ), row.names = F )
 
@@ -75,7 +75,7 @@ recordings.fixed.df %>%
          no.wet = is.na(wetland.type),
          cat = case_when(no.lat ~ "No coords",
                          no.wet ~ "No wetland type",
-                         T ~ "Good")) %>% 
+                         T ~ "Good")) %>%
   ggplot(aes(year, length.secs/3600, group = cat, fill = cat))+
   geom_col()+
   scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
@@ -86,7 +86,7 @@ recordings.fixed.df %>%
 recordings.fixed.df %>%
   filter(year(timestamp) > 2000,
          !is.na(wetland.type)) %>%
-  mutate(year = floor_date(timestamp, "year")) %>% 
+  mutate(year = floor_date(timestamp, "year")) %>%
   ggplot(aes(year, length.secs/3600, group = wetland.type, fill = wetland.type))+
   geom_col()+
   scale_x_date(date_labels = "%Y", date_breaks = "1 year")+
@@ -114,7 +114,7 @@ bounds.view <- list(c(-67.7, -62.25), c(45, 47.5))
 recordings.fixed.df %>%
   filter(year(timestamp) > 2000,
          !is.na(lon)) %>%
-  mutate(year = floor_date(timestamp, "year") %>% year() %>% as.character()) %>% 
+  mutate(year = floor_date(timestamp, "year") %>% year() %>% as.character()) %>%
   ggplot(aes(lon, lat)) +
   geom_polygon(data = worldMap.df, aes(long, lat,group=group), fill="#AAAAAA", colour="#000000")+
   geom_polygon(data = lakes.df, aes(long, lat,group=group), fill="#d1dbe5", colour="#000000")+
